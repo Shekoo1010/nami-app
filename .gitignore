@@ -1,0 +1,5 @@
+node_modules/
+android/
+*.keystore
+keystore.b64
+KEYS-PRIVATE.txt
