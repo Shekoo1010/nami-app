@@ -1,0 +1,68 @@
+name: Build Nami APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install
+        run: npm install
+
+      - name: Add Android + icons
+        run: |
+          npx cap add android
+          npx capacitor-assets generate --android
+          npx cap sync android
+          bash scripts/patch-android.sh
+
+      - name: Build release APK (unsigned)
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Sign APK
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "$KS_B64" | base64 -d > nami.keystore
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          UNSIGNED=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          "$BT/zipalign" -p -f 4 "$UNSIGNED" nami-aligned.apk
+          "$BT/apksigner" sign --ks nami.keystore --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
+            --out nami.apk nami-aligned.apk
+          "$BT/apksigner" verify nami.apk
+          rm -f nami.keystore
+
+      - name: Publish to Releases (fixed link)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v1.0.${{ github.run_number }}"
+          gh release create "$TAG" nami.apk --title "Nami $TAG" --notes "Nami Android APK" --latest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nami-apk
+          path: nami.apk
