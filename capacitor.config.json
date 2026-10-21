@@ -1,0 +1,14 @@
+{
+  "appId": "com.nami.game",
+  "appName": "Nami",
+  "webDir": "www",
+  "backgroundColor": "#0b0710",
+  "server": {
+    "url": "https://shekoo1010.github.io/nami-app/",
+    "cleartext": false,
+    "allowNavigation": ["*.onrender.com", "shekoo1010.github.io"]
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
